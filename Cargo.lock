@@ -2112,7 +2112,7 @@ dependencies = [
  "near-client-primitives",
  "near-crypto",
  "near-jsonrpc",
- "near-jsonrpc-client",
+ "near-jsonrpc-client-old",
  "near-jsonrpc-primitives",
  "near-logger-utils",
  "near-metrics",
@@ -2783,7 +2783,7 @@ dependencies = [
  "near-client",
  "near-crypto",
  "near-jsonrpc-adversarial-primitives",
- "near-jsonrpc-client",
+ "near-jsonrpc-client-old",
  "near-jsonrpc-primitives",
  "near-logger-utils",
  "near-metrics",
@@ -2811,7 +2811,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "near-jsonrpc-client"
+name = "near-jsonrpc-client-old"
 version = "0.1.0"
 dependencies = [
  "actix-http",
@@ -4240,7 +4240,7 @@ dependencies = [
  "integration-tests",
  "log",
  "near-crypto",
- "near-jsonrpc-client",
+ "near-jsonrpc-client-old",
  "near-primitives",
  "nearcore",
 ]
@@ -4972,7 +4972,7 @@ dependencies = [
  "near-client",
  "near-crypto",
  "near-jsonrpc",
- "near-jsonrpc-client",
+ "near-jsonrpc-client-old",
  "near-jsonrpc-primitives",
  "near-logger-utils",
  "near-network",
