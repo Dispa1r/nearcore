@@ -1,6 +1,6 @@
 use crate::context::VMContext;
 use crate::dependencies::{External, MemoryLike};
-use crate::gas_counter::GasCounter;
+use crate::gas_counter::{FastGasCounter, GasCounter};
 use crate::types::{PromiseIndex, PromiseResult, ReceiptIndex, ReturnData};
 use crate::utils::split_method_names;
 use crate::ValuePtr;
@@ -121,6 +121,7 @@ impl<'a> VMLogic<'a> {
         let gas_counter = GasCounter::new(
             config.ext_costs.clone(),
             max_gas_burnt,
+            config.regular_op_cost,
             context.prepaid_gas,
             context.is_view(),
         );
@@ -340,7 +341,7 @@ impl<'a> VMLogic<'a> {
                     length: self.total_log_length.saturating_add(len),
                     limit: self.config.limit_config.max_total_log_length,
                 }
-                .into());
+                    .into());
             }
             buf = self.memory_get_vec(ptr, len)?;
         } else {
@@ -356,7 +357,7 @@ impl<'a> VMLogic<'a> {
                         length: self.total_log_length.saturating_add(max_len).saturating_add(1),
                         limit: self.config.limit_config.max_total_log_length,
                     }
-                    .into());
+                        .into());
                 }
                 buf.push(el);
             }
@@ -395,7 +396,7 @@ impl<'a> VMLogic<'a> {
                     length: self.total_log_length.saturating_add(len),
                     limit: self.config.limit_config.max_total_log_length,
                 }
-                .into());
+                    .into());
             }
             u16_buffer = vec![0u16; len as usize / 2];
             byteorder::LittleEndian::read_u16_into(&input, &mut u16_buffer);
@@ -418,7 +419,7 @@ impl<'a> VMLogic<'a> {
                             .saturating_add(size_of::<u16>() as u64),
                         limit: self.config.limit_config.max_total_log_length,
                     }
-                    .into());
+                        .into());
                 }
                 u16_buffer.push(el);
             }
@@ -454,7 +455,7 @@ impl<'a> VMLogic<'a> {
                 number_of_promises: self.promises.len() as u64,
                 limit: self.config.limit_config.max_promises_per_function_call_action,
             }
-            .into())
+                .into())
         } else {
             Ok(new_promise_idx)
         }
@@ -468,7 +469,7 @@ impl<'a> VMLogic<'a> {
                 length: self.total_log_length,
                 limit: self.config.limit_config.max_total_log_length,
             }
-            .into());
+                .into());
         }
         self.logs.push(message);
         Ok(())
@@ -516,7 +517,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "signer_account_id".to_string(),
             }
-            .into());
+                .into());
         }
         self.internal_write_register(
             register_id,
@@ -543,7 +544,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "signer_account_pk".to_string(),
             }
-            .into());
+                .into());
         }
         self.internal_write_register(register_id, self.context.signer_account_pk.clone())
     }
@@ -567,7 +568,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "predecessor_account_id".to_string(),
             }
-            .into());
+                .into());
         }
         self.internal_write_register(
             register_id,
@@ -709,7 +710,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "attached_deposit".to_string(),
             }
-            .into());
+                .into());
         }
         self.memory_set_u128(balance_ptr, self.context.attached_deposit)
     }
@@ -1053,9 +1054,8 @@ impl<'a> VMLogic<'a> {
     /// * If passed gas amount somehow overflows internal gas counters returns `IntegerOverflow`;
     /// * If we exceed usage limit imposed on burnt gas returns `GasLimitExceeded`;
     /// * If we exceed the `prepaid_gas` then returns `GasExceeded`.
-    pub fn gas(&mut self, gas_amount: u32) -> Result<()> {
-        let value = Gas::from(gas_amount) * Gas::from(self.config.regular_op_cost);
-        self.gas_counter.pay_wasm_gas(value)
+    pub fn gas(&mut self, opcodes: u32) -> Result<()> {
+        self.gas_counter.pay_wasm_gas(opcodes)
     }
 
     // ################
@@ -1257,7 +1257,7 @@ impl<'a> VMLogic<'a> {
                     number_of_input_data_dependencies: receipt_dependencies.len() as u64,
                     limit: self.config.limit_config.max_number_input_data_dependencies,
                 }
-                .into());
+                    .into());
             }
         }
         self.checked_push_promise(Promise::NotReceipt(receipt_dependencies))
@@ -1292,7 +1292,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_create".to_string(),
             }
-            .into());
+                .into());
         }
         let account_id = self.read_and_parse_account_id(account_id_ptr, account_id_len)?;
         let sir = account_id == self.context.current_account_id;
@@ -1335,7 +1335,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_then".to_string(),
             }
-            .into());
+                .into());
         }
         let account_id = self.read_and_parse_account_id(account_id_ptr, account_id_len)?;
         // Update the DAG and return new promise idx.
@@ -1409,7 +1409,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_create_account".to_string(),
             }
-            .into());
+                .into());
         }
         let (receipt_idx, sir) = self.promise_idx_to_receipt_idx_with_sir(promise_idx)?;
 
@@ -1451,7 +1451,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_deploy_contract".to_string(),
             }
-            .into());
+                .into());
         }
         let code = self.get_vec_from_memory_or_register(code_ptr, code_len)?;
         if code.len() as u64 > self.config.limit_config.max_contract_size {
@@ -1459,7 +1459,7 @@ impl<'a> VMLogic<'a> {
                 size: code.len() as u64,
                 limit: self.config.limit_config.max_contract_size,
             }
-            .into());
+                .into());
         }
 
         let (receipt_idx, sir) = self.promise_idx_to_receipt_idx_with_sir(promise_idx)?;
@@ -1514,7 +1514,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_function_call".to_string(),
             }
-            .into());
+                .into());
         }
         let amount = self.memory_get_u128(amount_ptr)?;
         let method_name = self.get_vec_from_memory_or_register(method_name_ptr, method_name_len)?;
@@ -1573,7 +1573,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_transfer".to_string(),
             }
-            .into());
+                .into());
         }
         let amount = self.memory_get_u128(amount_ptr)?;
 
@@ -1626,7 +1626,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_stake".to_string(),
             }
-            .into());
+                .into());
         }
         let amount = self.memory_get_u128(amount_ptr)?;
         let public_key = self.get_vec_from_memory_or_register(public_key_ptr, public_key_len)?;
@@ -1672,7 +1672,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_add_key_with_full_access".to_string(),
             }
-            .into());
+                .into());
         }
         let public_key = self.get_vec_from_memory_or_register(public_key_ptr, public_key_len)?;
 
@@ -1724,7 +1724,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_add_key_with_function_call".to_string(),
             }
-            .into());
+                .into());
         }
         let public_key = self.get_vec_from_memory_or_register(public_key_ptr, public_key_len)?;
         let allowance = self.memory_get_u128(allowance_ptr)?;
@@ -1789,7 +1789,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_delete_key".to_string(),
             }
-            .into());
+                .into());
         }
         let public_key = self.get_vec_from_memory_or_register(public_key_ptr, public_key_len)?;
 
@@ -1832,7 +1832,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_batch_action_delete_account".to_string(),
             }
-            .into());
+                .into());
         }
         let beneficiary_id =
             self.read_and_parse_account_id(beneficiary_id_ptr, beneficiary_id_len)?;
@@ -1868,7 +1868,7 @@ impl<'a> VMLogic<'a> {
             return Err(HostError::ProhibitedInView {
                 method_name: "promise_results_count".to_string(),
             }
-            .into());
+                .into());
         }
         Ok(self.promise_results.len() as _)
     }
@@ -1973,7 +1973,7 @@ impl<'a> VMLogic<'a> {
                 length: num_bytes,
                 limit: self.config.limit_config.max_length_returned_data,
             }
-            .into());
+                .into());
         }
         let data_cfg = &self.fees_config.data_receipt_creation_config;
         for data_receiver in &self.context.output_data_receivers {
@@ -2142,7 +2142,7 @@ impl<'a> VMLogic<'a> {
         let account_id = String::from_utf8(buf)
             .map(
                 #[allow(deprecated)]
-                AccountId::new_unvalidated,
+                    AccountId::new_unvalidated,
             )
             .map_err(|_| HostError::BadUTF8)?;
         Ok(account_id)
@@ -2190,7 +2190,7 @@ impl<'a> VMLogic<'a> {
                 length: key.len() as u64,
                 limit: self.config.limit_config.max_length_storage_key,
             }
-            .into());
+                .into());
         }
         let value = self.get_vec_from_memory_or_register(value_ptr, value_len)?;
         if value.len() as u64 > self.config.limit_config.max_length_storage_value {
@@ -2198,7 +2198,7 @@ impl<'a> VMLogic<'a> {
                 length: value.len() as u64,
                 limit: self.config.limit_config.max_length_storage_value,
             }
-            .into());
+                .into());
         }
         self.gas_counter.pay_per(storage_write_key_byte, key.len() as u64)?;
         self.gas_counter.pay_per(storage_write_value_byte, value.len() as u64)?;
@@ -2280,7 +2280,7 @@ impl<'a> VMLogic<'a> {
                 length: key.len() as u64,
                 limit: self.config.limit_config.max_length_storage_key,
             }
-            .into());
+                .into());
         }
         self.gas_counter.pay_per(storage_read_key_byte, key.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
@@ -2330,7 +2330,7 @@ impl<'a> VMLogic<'a> {
                 length: key.len() as u64,
                 limit: self.config.limit_config.max_length_storage_key,
             }
-            .into());
+                .into());
         }
         self.gas_counter.pay_per(storage_remove_key_byte, key.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
@@ -2381,7 +2381,7 @@ impl<'a> VMLogic<'a> {
                 length: key.len() as u64,
                 limit: self.config.limit_config.max_length_storage_key,
             }
-            .into());
+                .into());
         }
         self.gas_counter.pay_per(storage_has_key_byte, key.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
@@ -2514,6 +2514,11 @@ impl<'a> VMLogic<'a> {
     pub fn add_contract_compile_fee(&mut self, code_len: u64) -> Result<()> {
         self.gas_counter.pay_per(contract_compile_bytes, code_len)?;
         self.gas_counter.pay_base(contract_compile_base)
+    }
+
+    /// Gets pointer to the fast gas counter.
+    pub fn gas_counter_pointer(&mut self) -> *mut FastGasCounter {
+        self.gas_counter.gas_counter_raw_ptr()
     }
 }
 
