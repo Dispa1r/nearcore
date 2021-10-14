@@ -25,6 +25,7 @@ pub fn with_ext_cost_counter(f: impl FnOnce(&mut HashMap<ExtCosts, u64>)) {
 type Result<T> = ::std::result::Result<T, VMLogicError>;
 
 /// Fast gas counter with very simple structure, could be exposed to compiled code in the VM.
+#[repr(C)]
 pub struct FastGasCounter {
     /// The following three fields must be put next to another to make sure
     /// generated gas counting code can use and adjust them.
@@ -33,11 +34,11 @@ pub struct FastGasCounter {
     /// and the host code.
 
     /// The amount of gas that was irreversibly used for contract execution.
-    burnt_gas: Gas,
+    burnt_gas: u64,
     /// Hard gas limit for execution
-    gas_limit: Gas,
+    gas_limit: u64,
     /// Single WASM opcode cost
-    opcode_cost: Gas,
+    opcode_cost: u64,
 }
 
 /// Gas counter (a part of VMlogic)
