@@ -138,8 +138,7 @@ impl GasCounter {
         let value = Gas::from(opcodes) * self.fast_counter.opcode_cost;
         let new_burnt_gas =
             self.fast_counter.burnt_gas.checked_add(value).ok_or(HostError::IntegerOverflow)?;
-        if new_burnt_gas <= self.fast_counter.gas_limit
-        {
+        if new_burnt_gas <= self.fast_counter.gas_limit {
             self.fast_counter.burnt_gas = new_burnt_gas;
             Ok(())
         } else {
