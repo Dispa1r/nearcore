@@ -252,7 +252,7 @@ impl GasCounter {
         self.fast_counter.burnt_gas
     }
     pub fn used_gas(&self) -> Gas {
-        self.promises_gas.checked_add(self.fast_counter.burnt_gas).unwrap()
+        self.promises_gas + self.fast_counter.burnt_gas
     }
 
     pub fn profile_data(&self) -> ProfileData {
